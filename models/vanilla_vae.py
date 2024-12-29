@@ -81,13 +81,17 @@ class VanillaVAE(BaseVAE):
         :param input: (Tensor) Input tensor to encoder [N x C x H x W]
         :return: (Tensor) List of latent codes
         """
-        result = self.encoder(input)
-        result = torch.flatten(result, start_dim=1)
+        # input: 3,64,64 instead of 3,218,178 because input image would be cropped to this size
+
+        # a sequence of convolutional layers, final channel is 512      
+        result = self.encoder(input) # n, 512, 2, 2
+        # start flattening from start dim, [n,c,h,w] -> [n,c*h*w]
+        result = torch.flatten(result, start_dim=1) # n, 512*2*2
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution
-        mu = self.fc_mu(result)
-        log_var = self.fc_var(result)
+        mu = self.fc_mu(result) # n, latent_dim (128)
+        log_var = self.fc_var(result) # n, latent_dim (128)
 
         return [mu, log_var]
 
@@ -99,6 +103,7 @@ class VanillaVAE(BaseVAE):
         :return: (Tensor) [B x C x H x W]
         """
         result = self.decoder_input(z)
+        # view要求输入的维度是连续的，不额外复制数据，所以需要contiguous如果不连续
         result = result.view(-1, 512, 2, 2)
         result = self.decoder(result)
         result = self.final_layer(result)
@@ -118,7 +123,7 @@ class VanillaVAE(BaseVAE):
 
     def forward(self, input: Tensor, **kwargs) -> List[Tensor]:
         mu, log_var = self.encode(input)
-        z = self.reparameterize(mu, log_var)
+        z = self.reparameterize(mu, log_var) # n, latent_dim (128)
         return  [self.decode(z), input, mu, log_var]
 
     def loss_function(self,
